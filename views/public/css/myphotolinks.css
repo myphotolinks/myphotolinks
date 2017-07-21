@@ -1,0 +1,75 @@
+/**
+ * Styles for the public front-end
+ *
+ * This file contains CSS.
+ *
+ * @link        myphotolinks
+ * @since       0.1.0
+ *
+ * @package     myphotolinks
+ * @subpackage  myphotolinks/views
+ */
+
+.myphotolinks-blocks {
+  counter-reset: blocks;
+  background-color: #f0f0f0;
+  color: #333;
+  font-weight: bold;
+  font-size: .9em;
+  padding: 8px 0 0 8px;
+  margin-bottom: 8px;
+}
+
+.myphotolinks-blocks::before {
+  content: attr(data-number) " blocks";
+  display: block;
+  padding-bottom: 8px;
+}
+
+.myphotolinks-blocks[data-number="1"]::before {
+  content: attr(data-number) " block";
+}
+
+.myphotolinks-blocks::after {
+  content: "";
+  display: table;
+  width: 100%;
+  clear: both;
+}
+
+.myphotolinks-blocks ul,
+.myphotolinks-blocks li {
+  list-style: none;
+}
+
+.myphotolinks-blocks li {
+  position: relative;
+  float: left;
+  margin: 0 8px 8px 0;
+  height: 150px;
+  width: 150px;
+}
+
+.widget .myphotolinks-blocks ul li {
+  padding: 0;
+  border: 0;
+}
+
+.widget .myphotolinks-blocks ul li + li {
+  margin-top: 0; /* reset */
+}
+
+.myphotolinks-blocks li > a::before {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  color: #fff;
+  background-color: #000;
+  content: "+";
+  padding: 8px;
+}
+
+.myphotolinks-blocks li img {
+  width: 150px;
+  height: 150px;
+}

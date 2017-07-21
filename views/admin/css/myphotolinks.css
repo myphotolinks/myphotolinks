@@ -1,0 +1,60 @@
+/**
+ * Styles for the WP Admin plugin options page
+ *
+ * This file contains CSS.
+ *
+ * @link        myphotolinks
+ * @since       0.1.0
+ *
+ * @package     myphotolinks
+ * @subpackage  myphotolinks/views
+ */
+
+.myphotolinks-blocks {
+  counter-reset: blocks;
+}
+
+.myphotolinks-blocks::after {
+  content: "";
+  display: table;
+  width: 100%;
+  clear: both;
+}
+
+.myphotolinks-blocks ul,
+.myphotolinks-blocks li {
+  float: left;
+}
+
+.myphotolinks-blocks li {
+  position: relative;
+  margin: 0 8px 8px 0;
+  height: 150px;
+  width: 150px;
+}
+
+.myphotolinks-blocks li::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: #fff;
+  background-color: #000;
+  counter-increment: blocks;
+  content: counter(blocks);
+  padding: 8px;
+}
+
+.myphotolinks-blocks li img {
+  width: 150px;
+  height: 150px;
+}
+
+.myphotolinks-date {
+  font-size: .95em;
+}
+
+.widget .myphotolinks-tip {
+  display: block;
+  padding-top: 4px;
+}
+
