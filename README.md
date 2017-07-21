@@ -12,4 +12,4 @@ Share private posts by sending individualized login links to the friends of your
 
 1. Ready-To-Go Hosted Version: <https://myphotolinks.com/>
 
-
+![alt text](https://myphotolinks.com/wp-content/uploads/2017/07/screen.jpg)
