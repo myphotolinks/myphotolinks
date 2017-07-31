@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.5.1
+Version:      0.6.0
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.5.1' );
+  define( 'MYPHOTOLINKS_VERSION', '0.6.0' );
 }
 
 /**
@@ -220,7 +220,27 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
     }
   }
   add_action( 'init', 'myphotolinks_link_login' );
-  
+
+  /**
+   * Hide private posts the user can't read
+   *
+   */
+  function myphotolinks_hide_some_private_posts( $query ) {
+    if ( $query->is_home() && $query->is_main_query() ) {
+      $user = wp_get_current_user();
+      $args = array( 'posts_per_page' => -1, 'post_status' => 'private'); 
+      $posts = get_posts($args);
+      $privates = array();
+      foreach($posts as $post) {
+        if ( !in_array( 'read_post_'.$post->ID, (array) $user->roles ) ) {
+          $privates[] = $post->ID;
+        }
+      }
+      $query->set('post__not_in',$privates);
+    }
+  }
+  add_action( 'pre_get_posts', 'myphotolinks_hide_some_private_posts');
+
   /**
    * URL to Post ID
    *
