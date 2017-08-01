@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.6.1
+Version:      0.6.2
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.6.1' );
+  define( 'MYPHOTOLINKS_VERSION', '0.6.2' );
 }
 
 /**
@@ -75,9 +75,22 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    * Register meta box(es).
    */
   function myphotolinks_register_meta_boxes() {
-      add_meta_box( 'meta-box-id', __( 'Send Private Links To...', 'textdomain' ), 'myphotolinks_my_display_callback', 'post' );
+      add_meta_box( 'meta-box-id', __( 'Send Private Links To...', 'myphotolinks' ), 'myphotolinks_my_display_callback', 'post' );
+      add_meta_box( 'meta-box-id-sent', __( 'Received This Post', 'myphotolinks' ), 'myphotolinks_my_display_callback_sent', 'post' );
   }
   add_action( 'add_meta_boxes', 'myphotolinks_register_meta_boxes' );
+
+  /**
+   * Meta box display callback - sent
+   *
+   * @param WP_Post $post Current post object.
+   */
+  function myphotolinks_my_display_callback_sent( $post ) {
+    $outline = '';
+    $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
+    $outline .= '<p>'. esc_attr($email_addresses) .'</p>';
+    echo $outline;
+  }
  
   /**
    * Meta box display callback.
@@ -87,7 +100,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
   function myphotolinks_my_display_callback( $post ) {
     $outline = '<label for="email_addresses" style="width:150px; display:inline-block;">'. esc_html__('Email Addresses', 'text-domain') .'</label>';
       $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
-      $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; &quot;auntie@hotmail.com&quot;">'. esc_attr($email_addresses) .'</textarea>';
+      $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; &quot;auntie@hotmail.com&quot;"></textarea>';
  
       echo $outline;
   }
@@ -99,7 +112,6 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    */
   function myphotolinks_save_meta_box( $post_id ) {
     if ( isset( $_POST['post_type'] ) && 'post' === $_POST['post_type'] ) {
-      add_post_meta( $post_id, 'myphotolinks_email_addresses', $_POST['email_addresses'] );
       $pattern = '/[a-z0-9_\-\+]+@[a-z0-9\-]+\.([a-z]{2,3})(?:\.[a-z]{2})?/i';
       preg_match_all($pattern, strtolower($_POST['email_addresses']), $matches);
       $result = add_role(
@@ -113,6 +125,8 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       $fname = $curr->first_name;
       $lname = $curr->last_name;
       $full_name = '';
+      $email_addresses = get_post_meta( $post_id, 'myphotolinks_email_addresses', true );
+      error_log($email_addresses);
       if( empty($fname)){
           $full_name = $lname;
       } elseif( empty( $lname )){
@@ -161,10 +175,14 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $headers[] = 'From: '.$full_name.' <'.$curr->user_email.'>';
         $headers[] = 'Reply-To: '.$curr->user_email;
         if( wp_mail( $to, $subject, $message, $headers ) ) {
+          $email_addresses .= ' '.$user_email;
+          error_log('2'.$email_addresses);
         } else {
           error_log('failed to email '.$user_email);
         }
       }
+      update_post_meta( $post_id, 'myphotolinks_email_addresses', $email_addresses );
+      error_log('3'.$email_addresses);
     }
   }
   add_action( 'post_updated', 'myphotolinks_save_meta_box' );
