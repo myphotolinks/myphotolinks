@@ -169,7 +169,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $my_post = get_post( $post_id );
         $headers = array();
         $to = $user->display_name . ' <' . $user_email . '>';
-        $subject = sprintf( __( 'Photos for you from %s', 'myphotolinks'), $full_name );
+        $subject = sprintf( __( 'Photos for you from %s: %s', 'myphotolinks'), $full_name, $my_post->post_title );
         $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $user->display_name ) . "\r\n" ." \r\n" .
         sprintf( __( '%s has shared some new photos with you privately:', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
         sprintf( __( '%s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
