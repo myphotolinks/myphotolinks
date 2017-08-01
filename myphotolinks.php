@@ -158,7 +158,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $str = $pass . 'myphotolinks_email' . $time;
         $token  = wp_hash( $str );
         $tok = get_post_meta( $post_id, 'myphotolinks_token'.$user_id );
-        if (!empty($tok)) $token = $token;
+        if (!empty($tok)) $token = $tok;
         update_post_meta( $post_id, 'myphotolinks_token'.$user_id, $token );
         update_post_meta( $post_id, 'myphotolinks_token_expiry'.$user_id, 0 );
         $arr_params = array( 'uid', 'token', 'nonce' );
