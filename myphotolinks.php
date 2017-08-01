@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.6.0
+Version:      0.6.1
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.6.0' );
+  define( 'MYPHOTOLINKS_VERSION', '0.6.1' );
 }
 
 /**
@@ -150,13 +150,14 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $url = remove_query_arg( $arr_params, $pageURL );
         $url_params = array('uid' => $user->ID, 'token' => $token, 'nonce' => $nonce);
         $url = add_query_arg($url_params, $url);
+        $my_post = get_post( $post_id );
         $headers = array();
         $to = $user->display_name . ' <' . $user_email . '>';
         $subject = sprintf( __( 'Photos for you from %s', 'myphotolinks'), $full_name );
         $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $user->display_name ) . "\r\n" ." \r\n" .
-        sprintf( __( 'You have a new private post from %s', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
-        sprintf( __( 'Here\'s a login-link: %s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
-        sprintf( __( 'Sent with My Photo Links https://myphotolinks.com Open Source, Private Photo Sharing', 'myphotolinks' )) . '.' . "\r\n";   
+        sprintf( __( '%s has shared some new photos with you privately:', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
+        sprintf( __( '%s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
+        sprintf( __( 'Sent with My Photo Links, an ad-free photo sharing tool for Parents, Teachers and Photographers who want to keep their photos safe and private.', 'myphotolinks' )) . "\r\n"." \r\n" ."www.myphotolinks.com\r\n\r\n";   
         $headers[] = 'From: '.$full_name.' <'.$curr->user_email.'>';
         $headers[] = 'Reply-To: '.$curr->user_email;
         if( wp_mail( $to, $subject, $message, $headers ) ) {
