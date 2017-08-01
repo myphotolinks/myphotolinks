@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.6.2
+Version:      0.6.3
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.6.2' );
+  define( 'MYPHOTOLINKS_VERSION', '0.6.3' );
 }
 
 /**
@@ -157,6 +157,8 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $wp_hasher = new PasswordHash(8, TRUE);
         $str = $pass . 'myphotolinks_email' . $time;
         $token  = wp_hash( $str );
+        $tok = get_post_meta( $post_id, 'myphotolinks_token'.$user_id );
+        if (!empty($tok)) $token = $token;
         update_post_meta( $post_id, 'myphotolinks_token'.$user_id, $token );
         update_post_meta( $post_id, 'myphotolinks_token_expiry'.$user_id, 0 );
         $arr_params = array( 'uid', 'token', 'nonce' );
