@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.6.3
+Version:      0.7.0
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.6.3' );
+  define( 'MYPHOTOLINKS_VERSION', '0.7.0' );
 }
 
 /**
@@ -215,7 +215,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       $url = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
       $arr_params = array( 'uid', 'token', 'nonce' );
       $url = remove_query_arg( $arr_params, $url );
-      $post_id = myphotolinks_url_to_postid( $url ); 
+      $post_id = myphotolinks_url_to_postid( $url );
       $tok = get_post_meta( $post_id, 'myphotolinks_token'.$user_id );
       if ( $tok[0] !== $token){
         error_log('BAD LOGIN TOKEN');
@@ -234,7 +234,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         } else {
           error_log('failed to notify '.$author->user_email);
         }
-        wp_set_auth_cookie( $user_id );
+        wp_set_auth_cookie( $user->ID );
         wp_redirect( $url );
         exit;
       }
@@ -261,7 +261,130 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
     }
   }
   add_action( 'pre_get_posts', 'myphotolinks_hide_some_private_posts');
+  /**
+   * Get an attachment ID given a URL.
+   * 
+   * @param string $url
+   *
+   * @return int Attachment ID on success, 0 on failure
+   */
+  function get_attachment_id( $url ) {
+  	$attachment_id = 0;
+  	$dir = wp_upload_dir();
+  	if ( false !== strpos( $url, $dir['baseurl'] . '/' ) ) { // Is URL in uploads directory?
+  		$file = basename( $url );
+  		$query_args = array(
+  			'post_type'   => 'attachment',
+  			'post_status' => 'inherit',
+  			'fields'      => 'ids',
+  			'meta_query'  => array(
+  				array(
+  					'value'   => $file,
+  					'compare' => 'LIKE',
+  					'key'     => '_wp_attachment_metadata',
+  				),
+  			)
+  		);
+  		$query = new WP_Query( $query_args );
+  		if ( $query->have_posts() ) {
+  			foreach ( $query->posts as $post_id ) {
+  				$meta = wp_get_attachment_metadata( $post_id );
+  				$original_file       = basename( $meta['file'] );
+  				$cropped_image_files = wp_list_pluck( $meta['sizes'], 'file' );
+  				if ( $original_file === $file || in_array( $file, $cropped_image_files ) ) {
+  					$attachment_id = $post_id;
+  					break;
+  				}
+  			}
+  		}
+  	}
+  	return $attachment_id;
+  }
+  function myphotolinks_template_redirect() {
+    if (strpos($_SERVER['REQUEST_URI'], 'myphotolinks=1') !== false) {
+      $user = wp_get_current_user();
+      $post_id = get_the_id();
+      $url = get_permalink($post_id);
+      if ( user_can($user->ID, 'read_post_'.$post_id) ) {
+        if ($_GET['action'] == 'download') {
 
+          $filename = 'photos-'.$user->ID.'_'.$post_id."_file.zip";
+          $upload_dir = wp_upload_dir();
+          $filepath = $upload_dir['basedir'].'/';
+          $files_to_zip = array();
+          $post_id = get_the_id();
+          $args = array(
+            'post_type' => 'attachment',
+            'posts_per_page' => -1,
+            'post_parent' => $post_id
+          );
+          $zip = new ZipArchive;
+          $zip->open($filepath.$filename, ZipArchive::CREATE);
+          $content = get_post_field('post_content', $post_id);
+          if ($content == null) {
+              return null;
+          }
+          $dom = new DOMDocument();
+          $dom->loadHTML($content);
+          $links = $dom->getElementsByTagName("a");
+          foreach($links as $l) {
+            $id = get_attachment_id((string)$l->getAttribute('href'));
+                $thisfile = get_attached_file( $id );
+                $thisfilename = substr($thisfile, strrpos($thisfile, '/')+1);
+               $zip->addFile($thisfile,$thisfilename);
+               error_log($thisfile.' '.$thisfilename);
+          }
+          $zip->close();
+          header("Pragma: public");
+          header("Expires: 0");
+          header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+          header("Cache-Control: public");
+          header("Content-Description: File Transfer");
+          header("Content-type: application/octet-stream");
+          header("Content-Disposition: attachment; filename=\"".$filename."\"");
+          header("Content-Transfer-Encoding: binary");
+          header("Content-Length: ".filesize($filepath.$filename));
+          @readfile($filepath.$filename);
+          //unlink($filepath.$filename);
+          $my_post = get_post( $post_id );
+          $author = get_user_by('id', $my_post->post_author);
+          $headers = array();
+          $to = $author->display_name . ' <' . $author->user_email . '>';
+          $subject = sprintf( __( '%s downloaded photos - %s', 'myphotolinks'), $user->display_name, $my_post->post_title );
+          $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $author->display_name ) . "\r\n" ." \r\n" .
+          sprintf( __( '%s downloaded photos - %s', 'myphotolinks' ), $user->display_name, $my_post->post_title ) . "\r\n" ." \r\n";
+          $headers[] = 'From: My Photo Links <info@myphotolinks.com>';
+          $headers[] = 'Reply-To: info@myphotolinks.com';
+          if( wp_mail( $to, $subject, $message, $headers ) ) {
+          } else {
+            error_log('failed to notify '.$author->user_email);
+          }
+          wp_set_auth_cookie( $user->ID );
+          wp_redirect( $url );
+          exit;
+        }
+      }
+    }
+  }
+  add_action('template_redirect','myphotolinks_template_redirect');
+  
+  function myphotolinks_add_download_link($content) {
+    if (!is_page( )){
+      $user = wp_get_current_user();
+      $post_id = get_the_id();
+      if ( user_can($user->ID, 'read_post_'.$post_id) ) {
+        $arr_params = array( 'uid', 'token', 'nonce' );
+        $pageURL = get_permalink($post_id);
+        $url = remove_query_arg( $arr_params, $pageURL );
+        $url_params = array('myphotolinks' => 1, 'action' => 'download');
+        $url = add_query_arg($url_params, $url);
+        $content .= '<a href="'.$url.'" style="font-size:24px;color:white;background-color:#555;padding:10px;">Download Photos</a><br>';
+      }
+    }
+    return $content;
+  }      
+  add_filter('the_content', 'myphotolinks_add_download_link');
+  
   /**
    * URL to Post ID
    *
@@ -351,5 +474,6 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
     }
     return 0;
   }
+  
   
 ?>
