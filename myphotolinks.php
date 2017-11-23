@@ -100,7 +100,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
   function myphotolinks_my_display_callback( $post ) {
     $outline = '<label for="email_addresses" style="width:150px; display:inline-block;">'. esc_html__('Email Addresses', 'text-domain') .'</label>';
       $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
-      $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; &quot;auntie@hotmail.com&quot;"></textarea>';
+      $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" style="width:99%" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; &quot;auntie@hotmail.com&quot;"></textarea>';
  
       echo $outline;
   }
