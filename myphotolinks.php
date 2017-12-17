@@ -173,7 +173,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $user->display_name ) . "\r\n" ." \r\n" .
         sprintf( __( '%s has shared some new photos with you privately:', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
         sprintf( __( '%s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
-        sprintf( __( 'Sent with My Photo Links, an ad-free photo sharing tool for Parents, Teachers and Photographers who want to keep their photos safe and private.', 'myphotolinks' )) . "\r\n"." \r\n" ."www.myphotolinks.com\r\n\r\n";   
+        sprintf( __( 'Sent with My Photo Links, a photo sharing tool for anyone who wants to keep their photos safe and private.', 'myphotolinks' )) . "\r\n"." \r\n" ."www.myphotolinks.com\r\n\r\n";   
         $headers[] = 'From: '.$full_name.' <'.$curr->user_email.'>';
         $headers[] = 'Reply-To: '.$curr->user_email;
         if( wp_mail( $to, $subject, $message, $headers ) ) {
@@ -384,6 +384,24 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
     return $content;
   }      
   add_filter('the_content', 'myphotolinks_add_download_link');
+	
+  function myphotolinks_add_who_can_see_this($content) {
+    if (!is_page( )){
+      $user = wp_get_current_user();
+      $post_id = get_the_id();
+      if ( user_can($user->ID, 'read_post_'.$post_id) ) {
+        $arr_params = array( 'uid', 'token', 'nonce' );
+        $pageURL = get_permalink($post_id);
+        $email_addresses = get_post_meta( $post_id, 'myphotolinks_email_addresses', true );
+        $status = get_post_status($post_id);
+        if ($status == 'private') {
+          $content .= '<br clear="all"><div style="border:1px solid black;padding:13px;"><h3>Who can see this post and its comments?</h3><br /><p>'.str_replace(" ","<br>",$email_addresses).'</p></div>';
+        }
+      }
+    }
+    return $content;
+  }      
+  add_filter('the_content', 'myphotolinks_add_who_can_see_this');
   
   /**
    * URL to Post ID
