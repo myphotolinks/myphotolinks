@@ -88,9 +88,69 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
   function myphotolinks_my_display_callback_sent( $post ) {
     $outline = '';
     $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
-    $outline .= '<p>'. esc_attr($email_addresses) .'</p>';
+    $arr = explode(' ',$email_addresses);
+    $pageURL = get_permalink($post->ID);
+    $url = remove_query_arg( $arr_params, $pageURL );
+    foreach($arr as $e) {
+      $url_params = array('myphotolinks' => 1, 'action' => 're_send', 'acct'=>$e, 'post_id'=>$post->ID);
+      $resend_url = add_query_arg($url_params, $url);
+      $outline .= '<p>'.$e.'&nbsp;<a href="'.$resend_url.'">re-send link</a></p>';
+    }
+    //$outline .= '<p>'. esc_attr($email_addresses) .'</p>';
     echo $outline;
   }
+ 
+  function myphotolinks_resend_template_redirect() {
+    if (strpos($_SERVER['REQUEST_URI'], 'myphotolinks=1') !== false) {
+      if ($_GET['action'] == 're_send') {
+        $edit_url = get_edit_post_link($_GET['post_id']);
+        $user = get_user_by( 'email', $_GET['acct'] );
+        $user_id = $user->ID;
+        $nonce = wp_create_nonce( 'myphotolinks_email' );
+        $url = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+        $arr_params = array('myphotolinks','acct','action','post_id');
+        $url = remove_query_arg( $arr_params, $url );
+        $post_id = myphotolinks_url_to_postid( $url );
+        $tok = get_post_meta( $post_id, 'myphotolinks_token'.$user_id );
+        if (!empty($tok[0])) $token = $tok[0];
+        $my_post = get_post( $post_id );
+        $author = get_user_by('id', $my_post->post_author);
+        $headers = array();
+        $url_params = array('uid' => $user->ID, 'token' => $token, 'nonce' => $nonce);
+        $url = add_query_arg($url_params, $url);
+        $my_post = get_post( $post_id );
+        $headers = array();
+        $curr = wp_get_current_user();
+        $fname = $curr->first_name;
+        $lname = $curr->last_name;
+        $full_name = '';
+        if( empty($fname)){
+            $full_name = $lname;
+        } elseif( empty( $lname )){
+            $full_name = $fname;
+        } else {
+            $full_name = "{$fname} {$lname}";
+        }
+        if (empty($full_name)) $full_name = $curr->display_name;
+        if (empty($full_name)) $full_name = 'My Photo Links';
+        $to = $user->display_name . ' <' . $user_email . '>';
+        $subject = sprintf( __( 'Photos for you from %s: %s', 'myphotolinks'), $full_name, $my_post->post_title );
+        $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $user->display_name ) . "\r\n" ." \r\n" .
+        sprintf( __( '%s has shared some new photos with you privately:', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
+        sprintf( __( '%s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
+        sprintf( __( 'Sent with My Photo Links, a photo sharing tool for anyone who wants to keep their photos safe and private.', 'myphotolinks' )) . "\r\n"." \r\n" ."www.myphotolinks.com\r\n\r\n";   
+        $headers[] = 'From: '.$full_name.' <'.$curr->user_email.'>';
+        $headers[] = 'Reply-To: '.$curr->user_email;
+        if( wp_mail( $to, $subject, $message, $headers ) ) {
+        } else {
+          error_log('failed to email '.$user_email);
+        }
+        wp_redirect( $edit_url );
+        exit;
+      }
+    }
+  }
+  add_action('template_redirect','myphotolinks_resend_template_redirect');
  
   /**
    * Meta box display callback.
