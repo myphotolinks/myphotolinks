@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.7.0
+Version:      0.7.1
 Author:       Brian Hendrickson
 Author URI:   http://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.7.0' );
+  define( 'MYPHOTOLINKS_VERSION', '0.7.1' );
 }
 
 /**
@@ -112,7 +112,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    */
   function myphotolinks_save_meta_box( $post_id ) {
     if ( isset( $_POST['post_type'] ) && 'post' === $_POST['post_type'] ) {
-      $pattern = '/[a-z0-9_\-\+]+@[a-z0-9\-]+\.([a-z]{2,3})(?:\.[a-z]{2})?/i';
+      $pattern = '/[.a-z0-9_\-\+]+@[a-z0-9\-]+\.([a-z]{2,3})(?:\.[a-z]{2})?/i';
       preg_match_all($pattern, strtolower($_POST['email_addresses']), $matches);
       $result = add_role(
         'read_post_'.$post_id,
@@ -136,6 +136,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       }
       if (empty($full_name)) $full_name = $curr->display_name;
       if (empty($full_name)) $full_name = 'My Photo Links';
+      $curr->add_role('read_post_'.$post_id);
       foreach($matches[0] as $user_email) {
         $exists = email_exists($user_email);
         if ( $exists ) {
