@@ -3,7 +3,7 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.8.0
+Version:      0.8.1
 Author:       Brian Hendrickson
 Author URI:   https://hoverkitty.com
 License:      MIT License
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.8.0' );
+  define( 'MYPHOTOLINKS_VERSION', '0.8.1' );
 }
 
 /**
@@ -118,7 +118,9 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       $resend_url = add_query_arg($url_params, $url);
       $outline .= '<p><input name="myphotolinks_edit_name'.$uid.'" type="text" value="'.$e.'" alt="'.$e.'" />&nbsp;('.$extra.'..)&nbsp;<a href="'.$resend_url.'">Re-send Personalized Auto-Login Link</a></p>';
     }
-    $outline .= '<input type="submit" value="Save Names" />';
+    if (!empty($sent_to)) {
+      $outline .= '<input type="submit" value="Save Names" />';
+    }
     echo $outline;
   }
  
@@ -189,7 +191,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
     $message = sprintf( __( 'Hi %s!', 'myphotolinks' ), $user->display_name ) . "\r\n" ." \r\n" .
     sprintf( __( '%s has shared some new photos with you privately:', 'myphotolinks' ), $full_name ) . "\r\n" ." \r\n" .
     sprintf( __( '%s', 'myphotolinks' ), $url ) . "\r\n" . " \r\n" .
-    sprintf( __( 'Sent with My Photo Links, a photo sharing tool for anyone who wants to keep their photos safe and private.', 'myphotolinks' )) . "\r\n"." \r\n" ."myphotolinks.com\r\n\r\n";   
+    sprintf( __( 'Sent with My Photo Links, the photo sharing tool that uses an SD card on your wi-fi network.', 'myphotolinks' )) . "\r\n"." \r\n" ."myphotolinks.com\r\n\r\n";   
     $headers[] = 'From: '.$full_name.' <'.$curr->user_email.'>';
     $headers[] = 'Reply-To: '.$curr->user_email;
     if( wp_mail( $to, $subject, $message, $headers ) ) {
@@ -221,8 +223,31 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    * @param WP_Post $post Current post object.
    */
   function myphotolinks_my_display_callback( $post ) {
-    $outline = '<label for="email_addresses" style="width:99%;display:inline-block;">'. esc_html__('Email Addresses or Phone Numbers', 'text-domain') .'</label>';
-      $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
+    $outline = '';
+    $blogusers = get_users();
+    foreach ( $blogusers as $curr ) {
+      $fname = $curr->first_name;
+      $lname = $curr->last_name;
+      $full_name = '';
+      if( empty($fname)){
+          $full_name = $lname;
+      } elseif( empty( $lname )){
+          $full_name = $fname;
+      } else {
+          $full_name = "{$fname} {$lname}";
+      }
+      if (empty($full_name)) $full_name = $curr->display_name;
+      if (!empty($curr->user_email)) {
+        $extra = substr($curr->user_email,0,6);
+      }
+      $phone = get_usermeta($curr->ID,'phone');
+      if (!empty($phone)) {
+        $extra = substr($phone,0,6);
+      }
+      $outline .= '<p><input type="checkbox" name="myphotolinks_send_user'.$curr->ID.'" id="disp_nam'.$curr->ID.'" value="do_send">';
+      $outline .= '<label for="disp_nam'.$curr->ID.'">'.esc_html( $full_name ).'</label>&nbsp;('.$extra.'..)</p>';
+    }
+    $outline .= '<label for="email_addresses" style="width:99%;display:inline-block;margin-top:20px;">'. esc_html__('Email Addresses or Phone Numbers', 'text-domain') .'</label>';
       $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" style="width:99%" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; 501-211-4214 &quot;auntie@hotmail.com&quot; 5142232424"></textarea>';
  
       echo $outline;
@@ -338,6 +363,54 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         myphotolinks_send_email_notification($user,$user_email,$full_name,$my_post,$url,$curr);
         $email_addresses .= ' '.$user_email;
         $sent_to .= ' '.$user_id;
+      }
+      foreach($_POST as $k=>$v) {
+        if (substr($k,0,22) == 'myphotolinks_send_user') {
+          if ($v != 'do_send') continue;
+          $user_id = substr($k,22);
+          $user = get_user_by('id', $user_id);
+
+          $time = time();
+          $nonce = wp_create_nonce( 'myphotolinks_email' );
+
+          $user->add_role('read_post_'.$post_id);
+          $pass = wp_generate_password( 20, false );
+          require_once( ABSPATH . 'wp-includes/class-phpass.php');
+          $wp_hasher = new PasswordHash(8, TRUE);
+          $str = $pass . 'myphotolinks_email' . $time;
+          $token  = wp_hash( $str );
+          $tok = get_post_meta( $post_id, 'myphotolinks_token'.$user_id );
+          if (!empty($tok[0])) $token = $tok[0];
+          update_post_meta( $post_id, 'myphotolinks_token'.$user_id, $token );
+          update_post_meta( $post_id, 'myphotolinks_token_expiry'.$user_id, 0 );
+          $arr_params = array( 'uid', 'token', 'nonce' );
+          $pageURL = get_permalink($post_id);
+          $url = remove_query_arg( $arr_params, $pageURL );
+          $url_params = array('uid' => $user->ID, 'token' => $token, 'nonce' => $nonce);
+          $url = add_query_arg($url_params, $url);
+          $my_post = get_post( $post_id );
+          $curr = wp_get_current_user();
+          $fname = $curr->first_name;
+          $lname = $curr->last_name;
+          $full_name = '';
+          if( empty($fname)){
+              $full_name = $lname;
+          } elseif( empty( $lname )){
+              $full_name = $fname;
+          } else {
+              $full_name = "{$fname} {$lname}";
+          }
+          if (empty($full_name)) $full_name = $curr->display_name;
+          if (empty($full_name)) $full_name = 'My Photo Links';
+          if (!empty($user->user_email)) {
+            myphotolinks_send_email_notification($user,$user->user_email,$full_name,$my_post,$url,$curr);
+          }
+          $phone = get_usermeta($user->ID,'phone');
+          if (!empty($phone)) {
+            myphotolinks_send_sms_notification($user,$phone,$full_name,$my_post,$url,$curr);
+          }
+          $sent_to .= ' '.$user_id;
+        }
       }
       update_post_meta( $post_id, 'myphotolinks_email_addresses', $email_addresses );
       update_post_meta( $post_id, 'myphotolinks_phone_numbers', $phone_numbers );
