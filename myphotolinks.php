@@ -3,9 +3,9 @@
 Plugin Name:  My Photo Links
 Plugin URI:   https://myphotolinks.com
 Description:  Share private posts with groups of friends, they can only see the posts they are added to
-Version:      0.7.5
+Version:      0.8.0
 Author:       Brian Hendrickson
-Author URI:   http://hoverkitty.com
+Author URI:   https://hoverkitty.com
 License:      MIT License
 License URI:  https://opensource.org/licenses/MIT
 Text Domain:  myphotolinks
@@ -18,7 +18,7 @@ Domain Path:  /languages
  * @link https://wordpress.stackexchange.com/questions/18268/i-want-to-get-a-plugin-version-number-dynamically
  */
 if( ! defined( 'MYPHOTOLINKS_VERSION' ) ) {
-  define( 'MYPHOTOLINKS_VERSION', '0.7.5' );
+  define( 'MYPHOTOLINKS_VERSION', '0.8.0' );
 }
 
 /**
@@ -86,46 +86,60 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    * @param WP_Post $post Current post object.
    */
   function myphotolinks_my_display_callback_sent( $post ) {
-    $outline = '';
-    $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
-    $phone_numbers = get_post_meta( $post->ID, 'myphotolinks_phone_numbers', true );
-    $arr = explode(' ',$email_addresses);
-    $arr_ph = explode(' ',$phone_numbers);
+    $sent_to = get_post_meta( $post->ID, 'myphotolinks_sent_to', true );
+    $arr = explode(' ',$sent_to);
     $pageURL = get_permalink($post->ID);
     $url = remove_query_arg( $arr_params, $pageURL );
-    foreach($arr as $e) {
-      if ('' == trim($e)) continue;
-      $url_params = array('myphotolinks' => 1, 'action' => 're_send', 'acct'=>$e, 'post_id'=>$post->ID);
+    $url_params = array('myphotolinks' => 1, 'action' => 'save_names', 'post_id'=>$post->ID);
+    $save_names_url = add_query_arg($url_params, $url);
+    foreach($arr as $uid) {
+      if ('' == trim($uid)) continue;
+      $curr = get_user_by('id', $uid);
+      $fname = $curr->first_name;
+      $lname = $curr->last_name;
+      $full_name = '';
+      if( empty($fname)){
+          $full_name = $lname;
+      } elseif( empty( $lname )){
+          $full_name = $fname;
+      } else {
+          $full_name = "{$fname} {$lname}";
+      }
+      if (empty($full_name)) $full_name = $curr->display_name;
+      $e = $full_name;
+      if (!empty($curr->user_email)) {
+        $extra = substr($curr->user_email,0,6);
+      }
+      $phone = get_usermeta($curr->ID,'phone');
+      if (!empty($phone)) {
+        $extra = substr($phone,0,6);
+      }
+      $url_params = array('myphotolinks' => 1, 'action' => 're_send', 'acct'=>$uid, 'post_id'=>$post->ID);
       $resend_url = add_query_arg($url_params, $url);
-      $outline .= '<p>'.$e.'&nbsp;<a href="'.$resend_url.'">Re-send Personalized Auto-Login Link</a></p>';
+      $outline .= '<p><input name="myphotolinks_edit_name'.$uid.'" type="text" value="'.$e.'" alt="'.$e.'" />&nbsp;('.$extra.'..)&nbsp;<a href="'.$resend_url.'">Re-send Personalized Auto-Login Link</a></p>';
     }
-    foreach($arr_ph as $p) {
-      if ('' == trim($p)) continue;
-      $url_params = array('myphotolinks' => 1, 'action' => 're_send', 'phone'=>$p, 'post_id'=>$post->ID);
-      $resend_url = add_query_arg($url_params, $url);
-      $outline .= '<p>'.$p.'&nbsp;<a href="'.$resend_url.'">Re-send Personalized Auto-Login Link</a></p>';
-    }
+    $outline .= '<input type="submit" value="Save Names" />';
     echo $outline;
   }
  
+  function myphotolinks_save_names( $post_id ) {
+    if ( isset( $_POST['post_type'] ) && 'post' === $_POST['post_type'] ) {
+      foreach($_POST as $k=>$v) {
+        if (substr($k,0,22) == 'myphotolinks_edit_name') {
+          $user_id = substr($k,22);
+          $user_id = wp_update_user( array( 'ID' => $user_id, 'first_name' => $v ) );
+          $user_id = wp_update_user( array( 'ID' => $user_id, 'display_name' => $v ) );
+        }
+      }
+    }
+  }
+  add_action( 'post_updated', 'myphotolinks_save_names' );
+
   function myphotolinks_resend_template_redirect() {
     if (strpos($_SERVER['REQUEST_URI'], 'myphotolinks=1') !== false) {
       if ($_GET['action'] == 're_send') {
         $edit_url = get_edit_post_link($_GET['post_id']);
-        if (isset($_GET['acct'])) {
-          $user = get_user_by( 'email', $_GET['acct'] );
-        } else {
-          $user = reset(
-           get_users(
-            array(
-             'meta_key' => 'phone',
-             'meta_value' => $_GET['phone'],
-             'number' => 1,
-             'count_total' => false
-            )
-           )
-          );
-        }
+        $user = get_user_by('id', $_GET['acct']);
         $user_id = $user->ID;
         $nonce = wp_create_nonce( 'myphotolinks_email' );
         $url = "http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
@@ -154,10 +168,12 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         }
         if (empty($full_name)) $full_name = $curr->display_name;
         if (empty($full_name)) $full_name = 'My Photo Links';
-        if (isset($_GET['acct'])) {
+        if (!empty($user->user_email)) {
           myphotolinks_send_email_notification($user,$user->user_email,$full_name,$my_post,$url,$curr);
-        } else {
-          myphotolinks_send_sms_notification($user,$_GET['phone'],$full_name,$my_post,$url,$curr);
+        }
+        $phone = get_usermeta($user->ID,'phone');
+        if (!empty($phone)) {
+          myphotolinks_send_sms_notification($user,$phone,$full_name,$my_post,$url,$curr);
         }
         wp_redirect( $edit_url );
         exit;
@@ -205,7 +221,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
    * @param WP_Post $post Current post object.
    */
   function myphotolinks_my_display_callback( $post ) {
-    $outline = '<label for="email_addresses" style="width:99%" display:inline-block;">'. esc_html__('Email Addresses or Phone Numbers', 'text-domain') .'</label>';
+    $outline = '<label for="email_addresses" style="width:99%;display:inline-block;">'. esc_html__('Email Addresses or Phone Numbers', 'text-domain') .'</label>';
       $email_addresses = get_post_meta( $post->ID, 'myphotolinks_email_addresses', true );
       $outline .= '<textarea name="email_addresses" id="email_addresses" class="email_addresses" rows="5" cols="60" style="width:99%" placeholder="grandma@example.com &lt;friend@yahoo.net&gt; 501-211-4214 &quot;auntie@hotmail.com&quot; 5142232424"></textarea>';
  
@@ -236,6 +252,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       $full_name = '';
       $email_addresses = get_post_meta( $post_id, 'myphotolinks_email_addresses', true );
       $phone_numbers = get_post_meta( $post_id, 'myphotolinks_phone_numbers', true );
+      $sent_to = get_post_meta( $post_id, 'myphotolinks_sent_to', true );
       if( empty($fname)){
           $full_name = $lname;
       } elseif( empty( $lname )){
@@ -285,6 +302,7 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $my_post = get_post( $post_id );
         myphotolinks_send_sms_notification($user,$user_phone,$full_name,$my_post,$url,$curr);
         $phone_numbers .= ' '.$user_phone;
+        $sent_to .= ' '.$user_id;
       }
       foreach($matches[0] as $user_email) {
         $exists = email_exists($user_email);
@@ -319,9 +337,11 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
         $my_post = get_post( $post_id );
         myphotolinks_send_email_notification($user,$user_email,$full_name,$my_post,$url,$curr);
         $email_addresses .= ' '.$user_email;
+        $sent_to .= ' '.$user_id;
       }
       update_post_meta( $post_id, 'myphotolinks_email_addresses', $email_addresses );
       update_post_meta( $post_id, 'myphotolinks_phone_numbers', $phone_numbers );
+      update_post_meta( $post_id, 'myphotolinks_sent_to', $sent_to );
       $curr->add_role('read_post_'.$post_id);
     }
   }
@@ -530,11 +550,30 @@ if( ! defined( 'MYPHOTOLINKS_URL' ) ) {
       if ( user_can($user->ID, 'read_post_'.$post_id) ) {
         $arr_params = array( 'uid', 'token', 'nonce' );
         $pageURL = get_permalink($post_id);
-        $email_addresses = get_post_meta( $post_id, 'myphotolinks_email_addresses', true );
-        $phone_numbers = get_post_meta( $post_id, 'myphotolinks_phone_numbers', true );
+        $sent_to = get_post_meta( $post_id, 'myphotolinks_sent_to', true );
+        $arr = explode(' ',$sent_to);
+        $user_names = '';
+        $comma = '';
+        foreach($arr as $uid) {
+          if ('' == trim($uid)) continue;
+          $curr = get_user_by('id', $uid);
+          $fname = $curr->first_name;
+          $lname = $curr->last_name;
+          $full_name = '';
+          if( empty($fname)){
+              $full_name = $lname;
+          } elseif( empty( $lname )){
+              $full_name = $fname;
+          } else {
+              $full_name = "{$fname} {$lname}";
+          }
+          if (empty($full_name)) $full_name = $curr->display_name;
+          $user_names .= $comma . $full_name;
+          $comma = ', ';
+        }
         $status = get_post_status($post_id);
         if ($status == 'private') {
-          $content .= '<br clear="all"><div style="border:1px solid black;padding:13px;"><h3>Who can see this post and its comments?</h3><br /><p>'.str_replace(" ","<br>",$email_addresses).str_replace(" ","<br>",$phone_numbers).'</p></div>';
+          $content .= '<br clear="all"><div style="border:1px solid black;padding:13px;"><h3>Who can see this post and its comments?</h3><br /><p>'.$user_names.'</p></div>';
         }
       }
     }
